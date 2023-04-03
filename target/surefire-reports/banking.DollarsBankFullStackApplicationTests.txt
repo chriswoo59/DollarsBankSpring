@@ -1,0 +1,10 @@
+-------------------------------------------------------------------------------
+Test set: banking.DollarsBankFullStackApplicationTests
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 0.089 s <<< FAILURE! - in banking.DollarsBankFullStackApplicationTests
+banking.DollarsBankFullStackApplicationTests  Time elapsed: 0.087 s  <<< ERROR!
+java.lang.IllegalStateException: Could not load TestContextBootstrapper [class org.springframework.boot.test.context.SpringBootTestContextBootstrapper]. Specify @BootstrapWith's 'value' attribute or make the default bootstrapper class available.
+Caused by: org.springframework.beans.BeanInstantiationException: Failed to instantiate [org.springframework.boot.test.context.SpringBootTestContextBootstrapper]: Unresolvable class definition; nested exception is java.lang.NoClassDefFoundError: org/springframework/test/context/aot/AotTestAttributes
+Caused by: java.lang.NoClassDefFoundError: org/springframework/test/context/aot/AotTestAttributes
+Caused by: java.lang.ClassNotFoundException: org.springframework.test.context.aot.AotTestAttributes
+
