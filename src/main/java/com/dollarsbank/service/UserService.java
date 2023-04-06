@@ -63,7 +63,7 @@ public class UserService {
 			return new ResponseEntity<>(user, HttpStatus.ACCEPTED);
 		}
 		else {
-			return new ResponseEntity<>("Failed to create user " + user, HttpStatus.NOT_ACCEPTABLE);
+			return new ResponseEntity<>(null, HttpStatus.NOT_ACCEPTABLE);
 		}
 	}
 	
