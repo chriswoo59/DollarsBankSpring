@@ -40,6 +40,11 @@ public class UserController {
 		return service.login(req, credentials);
 	}
 	
+	@PostMapping("/authenticate")
+	public ResponseEntity<?> createJwtToken(Credentials credentials) throws Exception {
+		return service.createJwtToken(credentials);
+	}
+	
 	@GetMapping("/loggedin")
 	public ResponseEntity<?> getLoggedIn() {
 		return service.getLoggedInUser();

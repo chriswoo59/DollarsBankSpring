@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -23,11 +24,14 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import com.dollarsbank.model.Credentials;
 import com.dollarsbank.model.User;
 import com.dollarsbank.repository.UserRepository;
 //import com.dollarsbank.util.JwtUtil;
+import com.dollarsbank.security.JwtUtil;
 
 import jakarta.persistence.EntityExistsException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,18 +42,22 @@ public class UserService {
 
 	@Autowired
 	UserRepository userRepo;
-	
+
 	@Autowired
 	PasswordEncoder encoder;
-	
+
 	@Autowired
 	AuthenticationManager authManager;
-	
+
 	@Autowired
 	UserDetailsService userDetailsService;
-	
-//	@Autowired
-//	JwtUtil jwtUtil;
+
+	// authentication manager -> validates/authenticates user credentials
+	@Autowired
+	AuthenticationManager authenticationManager;
+
+	@Autowired
+	JwtUtil jwtUtil;
 
 	public ResponseEntity<?> createUser(User user) {
 		if (user != null) {
@@ -58,50 +66,62 @@ public class UserService {
 			}
 			// Encode password
 			user.setPassword(encoder.encode(user.getPassword()));
-			
+
 			userRepo.save(user);
 			return new ResponseEntity<>(user, HttpStatus.ACCEPTED);
-		}
-		else {
+		} else {
 			return new ResponseEntity<>(null, HttpStatus.NOT_ACCEPTABLE);
 		}
 	}
-	
+
 	public ResponseEntity<?> login(HttpServletRequest req, Credentials credentials) {
 		String username = credentials.getUsername();
 		String password = credentials.getPassword();
 		UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(username, password);
 		try {
 			Authentication authentication = authManager.authenticate(authToken);
-	        System.out.println("Logging in with [" + authentication.getPrincipal() + "]");
-	        SecurityContext sc = SecurityContextHolder.getContext();
-	        sc.setAuthentication(authentication);
-	        HttpSession session = req.getSession(true);
-	        session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, sc);
-		}
-		catch (Exception e) {
+			System.out.println("Logging in with [" + authentication.getPrincipal() + "]");
+			SecurityContext sc = SecurityContextHolder.getContext();
+			sc.setAuthentication(authentication);
+			HttpSession session = req.getSession(true);
+			session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, sc);
+		} catch (Exception e) {
 			return new ResponseEntity<>("Failed to authenticate", HttpStatus.NOT_FOUND);
 		}
 		// User is valid
 		UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-		
-		
+
 		return new ResponseEntity<>(userDetails, HttpStatus.CREATED);
 	}
+
 	
-//	public ResponseEntity<?> authenticate(String username, String password) {
-//		try {
-//			authManager.authenticate(new UsernamePasswordAuthenticationToken(username, password));
-//		}
-//		catch (Exception e) {
-//			return new ResponseEntity<>("Failed to authenticate", HttpStatus.NOT_FOUND);
-//		}
-//		// User is valid
-//		UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-//		String jwt = jwtUtil.generateTokens(userDetails);
-//		
-//		return new ResponseEntity<>(jwt, HttpStatus.CREATED);
-//	}
+	public ResponseEntity<?> createJwtToken(@RequestBody Credentials credentials) throws Exception {
+
+		// try to catch the exception for bad credentials, just so we can set our own
+		// message when this doesn't work
+		try {
+			// make sure we have a valid user by checking their username and password
+			authenticationManager.authenticate(
+					new UsernamePasswordAuthenticationToken(credentials.getUsername(), credentials.getPassword()));
+
+		} catch (BadCredentialsException e) {
+			// provide our own message on why login didn't work
+			throw new Exception("Incorrect username or password");
+		}
+
+		// as long as no exception was thrown, user is valid
+
+		// load in the user details for that user
+		final UserDetails userDetails = userDetailsService.loadUserByUsername(credentials.getUsername());
+
+		// generate the token for that user
+		final String jwt = jwtUtil.generateTokens(userDetails);
+
+		// return the token
+		return ResponseEntity.status(201).body(jwt);
+
+	}
+
 	public ResponseEntity<?> getLoggedInUser() {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		if ((authentication instanceof AnonymousAuthenticationToken)) {
@@ -123,12 +143,11 @@ public class UserService {
 		Optional<User> found = userRepo.findByUsernameIgnoreCase(username);
 		if (found.isPresent()) {
 			return new ResponseEntity<>(found.get(), HttpStatus.FOUND);
-		}
-		else {
+		} else {
 			return new ResponseEntity<>("User with specified username not found.", HttpStatus.NOT_FOUND);
 		}
 	}
-	
+
 	public ResponseEntity<?> getHistory() {
 		String username = SecurityContextHolder.getContext().getAuthentication().getName();
 		Optional<User> found = userRepo.findByUsernameIgnoreCase(username);
@@ -137,9 +156,8 @@ public class UserService {
 			// Reverse list to get last 5 using stream
 			Collections.reverse(history);
 			return new ResponseEntity<>(history.stream().limit(5).collect(Collectors.toList()), HttpStatus.OK);
-			
-		}
-		else {
+
+		} else {
 			return new ResponseEntity<>("User with specified username not found.", HttpStatus.NOT_FOUND);
 		}
 	}
@@ -184,12 +202,11 @@ public class UserService {
 					throw new IllegalAccessException("Only Admins can change user roles");
 				}
 			}
-			
+
 			userRepo.save(user);
-			
+
 			return new ResponseEntity<>(user, HttpStatus.OK);
-		}
-		else {
+		} else {
 			return new ResponseEntity<>("User with specified username not found.", HttpStatus.NOT_FOUND);
 		}
 	}
@@ -200,11 +217,10 @@ public class UserService {
 		if (found.isPresent()) {
 			found.get().setTotal(found.get().getTotal() + amount);
 			found.get().log("Deposit: " + amount);
-			
+
 			userRepo.save(found.get());
 			return new ResponseEntity<>(amount + " deposited to user " + username, HttpStatus.ACCEPTED);
-		}
-		else {
+		} else {
 			return new ResponseEntity<>("User with specified username not found.", HttpStatus.NOT_FOUND);
 		}
 	}
@@ -217,16 +233,15 @@ public class UserService {
 			if (total - amount >= 0) {
 				found.get().setTotal(found.get().getTotal() - amount);
 				found.get().log("Withdrawal: " + amount);
-				
+
 				userRepo.save(found.get());
 				return new ResponseEntity<>(amount + " withdrawn from user " + username, HttpStatus.ACCEPTED);
-			}
-			else {
+			} else {
 				// Not enough funds to withdraw
-				return new ResponseEntity<>("Only " + total + " left in this account. Cannot withdraw " + amount + ".", HttpStatus.NOT_ACCEPTABLE);
+				return new ResponseEntity<>("Only " + total + " left in this account. Cannot withdraw " + amount + ".",
+						HttpStatus.NOT_ACCEPTABLE);
 			}
-		}
-		else {
+		} else {
 			return new ResponseEntity<>("User with specified username not found.", HttpStatus.NOT_FOUND);
 		}
 	}
@@ -237,42 +252,35 @@ public class UserService {
 		Optional<User> found2 = userRepo.findByUsernameIgnoreCase(receiverUsername);
 		if (found1.isEmpty()) {
 			return new ResponseEntity<>("No user found with username " + senderUsername, HttpStatus.NOT_FOUND);
-		}
-		else if (found2.isEmpty()) {
+		} else if (found2.isEmpty()) {
 			return new ResponseEntity<>("No user found with username " + receiverUsername, HttpStatus.NOT_FOUND);
 		}
 		User sender = found1.get();
 		User receiver = found2.get();
-		
+
 		if (sender.getTotal() < amount) {
 			return new ResponseEntity<>("Sender does not have enough funds", HttpStatus.NOT_ACCEPTABLE);
 		}
-		
+
 		sender.setTotal(sender.getTotal() - amount);
 		receiver.setTotal(receiver.getTotal() + amount);
 		sender.log("Transaction: Sent $" + amount + " to " + receiverUsername);
 		receiver.log("Transaction: Received $" + amount + " from " + senderUsername);
-		
+
 		userRepo.save(sender);
 		userRepo.save(receiver);
-		
-		
-		
+
 		return new ResponseEntity<>("$" + amount + " successfully sent to " + receiverUsername, HttpStatus.ACCEPTED);
 	}
-	
+
 	public ResponseEntity<?> deleteUser(String username) {
 		Optional<User> found = userRepo.findByUsernameIgnoreCase(username);
 		if (found.isPresent()) {
 			userRepo.delete(found.get());
 			return new ResponseEntity<>(found.get(), HttpStatus.ACCEPTED);
-		}
-		else {
+		} else {
 			return new ResponseEntity<>("User with specified username not found.", HttpStatus.NOT_FOUND);
 		}
 	}
 
-	
-
-	
 }
