@@ -52,10 +52,6 @@ public class UserService {
 	@Autowired
 	UserDetailsService userDetailsService;
 
-	// authentication manager -> validates/authenticates user credentials
-	@Autowired
-	AuthenticationManager authenticationManager;
-
 	@Autowired
 	JwtUtil jwtUtil;
 
@@ -74,7 +70,7 @@ public class UserService {
 		}
 	}
 
-	public ResponseEntity<?> login(HttpServletRequest req, Credentials credentials) {
+	public ResponseEntity<?> login(Credentials credentials, HttpServletRequest req) {
 		String username = credentials.getUsername();
 		String password = credentials.getPassword();
 		UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(username, password);
@@ -91,36 +87,39 @@ public class UserService {
 		// User is valid
 		UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-		return new ResponseEntity<>(userDetails, HttpStatus.CREATED);
-	}
-
-	
-	public ResponseEntity<?> createJwtToken(@RequestBody Credentials credentials) throws Exception {
-
-		// try to catch the exception for bad credentials, just so we can set our own
-		// message when this doesn't work
-		try {
-			// make sure we have a valid user by checking their username and password
-			authenticationManager.authenticate(
-					new UsernamePasswordAuthenticationToken(credentials.getUsername(), credentials.getPassword()));
-
-		} catch (BadCredentialsException e) {
-			// provide our own message on why login didn't work
-			throw new Exception("Incorrect username or password");
-		}
-
-		// as long as no exception was thrown, user is valid
-
-		// load in the user details for that user
-		final UserDetails userDetails = userDetailsService.loadUserByUsername(credentials.getUsername());
-
 		// generate the token for that user
 		final String jwt = jwtUtil.generateTokens(userDetails);
 
 		// return the token
 		return ResponseEntity.status(201).body(jwt);
-
 	}
+
+//	public ResponseEntity<?> createJwtToken(Credentials credentials) throws Exception {
+//
+//		// try to catch the exception for bad credentials, just so we can set our own
+//		// message when this doesn't work
+//		try {
+//			// make sure we have a valid user by checking their username and password
+//			authManager.authenticate(
+//					new UsernamePasswordAuthenticationToken(credentials.getUsername(), credentials.getPassword()));
+//
+//		} catch (BadCredentialsException e) {
+//			// provide our own message on why login didn't work
+//			throw new Exception("Incorrect username or password");
+//		}
+//
+//		// as long as no exception was thrown, user is valid
+//
+//		// load in the user details for that user
+//		final UserDetails userDetails = userDetailsService.loadUserByUsername(credentials.getUsername());
+//
+//		// generate the token for that user
+//		final String jwt = jwtUtil.generateTokens(userDetails);
+//
+//		// return the token
+//		return ResponseEntity.status(201).body(jwt);
+//
+//	}
 
 	public ResponseEntity<?> getLoggedInUser() {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();

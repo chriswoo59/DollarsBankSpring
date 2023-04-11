@@ -37,13 +37,13 @@ public class UserController {
 	
 	@PostMapping("/login")
 	public ResponseEntity<?> login(@RequestBody Credentials credentials, HttpServletRequest req) {
-		return service.login(req, credentials);
+		return service.login(credentials, req);
 	}
 	
-	@PostMapping("/authenticate")
-	public ResponseEntity<?> createJwtToken(Credentials credentials) throws Exception {
-		return service.createJwtToken(credentials);
-	}
+//	@PostMapping("/authenticate")
+//	public ResponseEntity<?> createJwtToken(@RequestBody Credentials credentials) throws Exception {
+//		return service.createJwtToken(credentials);
+//	}
 	
 	@GetMapping("/loggedin")
 	public ResponseEntity<?> getLoggedIn() {
